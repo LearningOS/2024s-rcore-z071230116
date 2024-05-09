@@ -57,8 +57,9 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         *_ti = TaskInfo {
             status : get_current_status(),
             syscall_times : get_systimecall_times(),
-            time : ((get_run_times()/1_000_000 & 0xffff) * 1000 + get_run_times()%1_000_000/ 1000) as usize,
+            time : get_run_times()/10000,
         };
     }
+    error!("time:{}",get_run_times());
     0
 }
