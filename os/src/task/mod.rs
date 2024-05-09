@@ -17,7 +17,7 @@ mod task;
 use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
-use crate::timer::get_time_us;
+use crate::timer::get_time;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
@@ -56,7 +56,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
-            start_time:0,
+            start_time:get_time(),
             task_times:0,
             task_syscall_times:[0;MAX_SYSCALL_NUM]
         }; MAX_APP_NUM];
@@ -85,7 +85,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
-        task0.start_time = get_time_us();
+        task0.start_time = get_time();
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -101,9 +101,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Ready;
-        let time = get_time_us();
-        inner.tasks[current].task_times += time-inner.tasks[current].start_time; 
-        inner.tasks[current].start_time = time;
+        inner.tasks[current].task_times += get_time()-inner.tasks[current].start_time; 
     }
 
     /// Change the status of current `Running` task into `Exited`.
@@ -111,7 +109,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Exited;
-        inner.tasks[current].task_times += get_time_us()-inner.tasks[current].start_time; 
+        inner.tasks[current].task_times += get_time()-inner.tasks[current].start_time; 
     }
 
     /// Find next task to run and return task id.
@@ -132,9 +130,7 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
-            if inner.tasks[next].start_time == 0{
-                inner.tasks[next].start_time = get_time_us();
-            }            
+            inner.tasks[next].start_time = get_time();
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -153,18 +149,21 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_syscall_times[_syscallid] += 1;
+        if current == 2 && _syscallid == 410{
+            debug!("the systemcall:{},the times:{}",_syscallid,inner.tasks[current].task_syscall_times[_syscallid]);
+        }
     }
 
     fn get_run_times(&self) -> usize{
-        let mut inner = self.inner.exclusive_access();
+        let inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        inner.tasks[current].task_times += get_time_us()-inner.tasks[current].start_time;
         inner.tasks[current].task_times
     }
 
     fn get_systimecall_times(&self) ->[u32;MAX_SYSCALL_NUM]{
         let inner = self.inner.exclusive_access();
-        let current = inner.current_task;        
+        let current = inner.current_task;
+        error!("the call time:{:?}",inner.tasks[current].task_syscall_times);
         inner.tasks[current].task_syscall_times
     }
 
