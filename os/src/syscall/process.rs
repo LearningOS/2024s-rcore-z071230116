@@ -46,9 +46,8 @@ pub fn sys_yield() -> isize {
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     
     let _us = get_time_us();
-    error!("_us is {}",_us);
     let _sec:u64 = (_us / 1_000_000) as u64;
-    let _usec:u64 = (_us % 1_000_000) as u64;  
+    let _usec:u64 = (_us % 1_000_000) as u64;      
     let time = [_sec,_usec];
      
     let _current_token = current_user_token();
@@ -62,11 +61,10 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     let mut page =  ppn.get_bytes_array();
     let mut _offset = _va.page_offset();
 
-    let mut _index =0u8;
     for items in time{
         let item  = items. to_le_bytes();
         for i in item {            
-            _address += _index as usize;
+            _address += 1 as usize;
             _va = VirtAddr::from(_address);
             if vpn != _va.floor(){
                 vpn = _va.floor();
@@ -74,12 +72,9 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
                 page =  ppn.get_bytes_array();            
             }
             _offset = _va.page_offset();
-            page[_offset] = i;
-            _index += 1;
+            page[_offset] = i;            
         }
     }
-        
-        error!("this is over");     
     0
 }
 
