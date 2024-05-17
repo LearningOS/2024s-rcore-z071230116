@@ -1,9 +1,11 @@
 //! Process management syscalls
+
 use crate::{
     config::MAX_SYSCALL_NUM,
     task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
-    },
+        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next,current_user_token, TaskStatus,
+    }, timer::get_time_us,
+    mm::{PageTable,VirtAddr},
 };
 
 #[repr(C)]
@@ -42,8 +44,42 @@ pub fn sys_yield() -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    trace!("kernel: sys_get_time");
-    -1
+    error!("kernel: sys_get_time");
+    let _us = get_time_us();
+    let _sec:u64 = (_us / 1_000_000) as u64;
+    let _usec:u64 = (_us / 1_000_000) as u64;
+    let binding = [_sec,_usec];
+     
+    let _current_token = current_user_token();
+    let _page_table = PageTable::from_token(_current_token);
+
+    let mut _address = _ts as usize;
+
+    let mut _va = VirtAddr::from(_address);
+    let mut vpn = _va.floor(); 
+    let mut ppn = _page_table.translate(vpn).unwrap().ppn();
+    let mut page =  ppn.get_bytes_array();
+    let mut _offset = _va.page_offset();
+
+    let mut _index =0;
+    unsafe{
+        let time = binding.align_to::<u8>().1;        
+        for i in time {
+            error!("data :{}",*i);        
+            _address += 8*_index;
+            _va = VirtAddr::from(_address);
+            if vpn != _va.floor(){
+                vpn = _va.floor();
+                ppn = _page_table.translate(vpn).unwrap().ppn();
+                page =  ppn.get_bytes_array();            
+            }
+            _offset = _va.page_offset();
+            page[_offset] = *i;
+            _index += 1;
+        }
+    }   
+    
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
