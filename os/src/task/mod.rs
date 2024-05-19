@@ -14,6 +14,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+
 use crate::loader::{get_app_data, get_num_app};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
@@ -23,6 +24,9 @@ use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
+
+use crate::timer::get_time_us;
+use crate::config::MAX_SYSCALL_NUM;
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -79,6 +83,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let next_task = &mut inner.tasks[0];
         next_task.task_status = TaskStatus::Running;
+        next_task.start_time = get_time_us();
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -94,6 +99,9 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
         inner.tasks[cur].task_status = TaskStatus::Ready;
+        //let time = get_time_us();
+        //inner.tasks[cur].task_times += time-inner.tasks[cur].start_time; 
+        //inner.tasks[cur].start_time = time;
     }
 
     /// Change the status of current `Running` task into `Exited`.
@@ -101,6 +109,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
         inner.tasks[cur].task_status = TaskStatus::Exited;
+        //inner.tasks[cur].task_times += get_time_us()-inner.tasks[cur].start_time;
     }
 
     /// Find next task to run and return task id.
@@ -140,6 +149,10 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
+            if inner.tasks[next].start_time == 0{
+                inner.tasks[next].start_time = get_time_us();
+                error!("the start_time is {}",inner.tasks[next].start_time);
+            }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -152,6 +165,37 @@ impl TaskManager {
         } else {
             panic!("All applications completed!");
         }
+    } 
+    fn add_systemcall_time(&self,_syscallid:usize){
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_syscall_times[_syscallid] += 1;
+    }
+
+    fn get_run_times(&self) -> usize{
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        error!("the start time {}",inner.tasks[current].start_time);
+        error!("get_time_us {}",get_time_us());
+        inner.tasks[current].task_times = get_time_us()-inner.tasks[current].start_time;
+        inner.tasks[current].task_times
+    }
+
+    fn get_systimecall_times(&self) ->[u32;MAX_SYSCALL_NUM]{
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;        
+        inner.tasks[current].task_syscall_times
+    }
+
+    fn get_current_status(&self) ->TaskStatus{
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_status
+    }
+
+    fn get_current_pid(&self) ->usize{
+        let inner = self.inner.exclusive_access();
+        inner.current_task
     }
 }
 
@@ -201,4 +245,28 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+///Change the syscall times
+pub fn add_syscall_times(_syacalid:usize){
+    TASK_MANAGER.add_systemcall_time(_syacalid);
+}
+
+/// Get the task information
+pub  fn get_run_times() -> usize{
+    TASK_MANAGER.get_run_times() 
+}
+
+/// Get the systimecall times
+pub fn get_systimecall_times() ->[u32;MAX_SYSCALL_NUM]{
+    TASK_MANAGER.get_systimecall_times()
+}
+
+/// Get the current_status
+pub fn get_current_status() ->TaskStatus{
+    TASK_MANAGER.get_current_status()
+}
+
+/// Get the current_status
+pub fn get_current_pid() ->usize{
+    TASK_MANAGER.get_current_pid()
 }
