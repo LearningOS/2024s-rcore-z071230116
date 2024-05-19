@@ -106,6 +106,11 @@ impl TaskControlBlock {
             None
         }
     }
+
+    /// get memory_set
+    pub fn get_memory_set(&mut self) ->&'static mut MemorySet{
+        unsafe { (& mut self.memory_set as *mut MemorySet).as_mut().unwrap()}
+    }
 }
 
 #[derive(Copy, Clone, PartialEq,Debug)]

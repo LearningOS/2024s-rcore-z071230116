@@ -1,13 +1,15 @@
 //! Process management syscalls
 
 
+
 use crate::{
     config::{MAX_SYSCALL_NUM,PAGE_SIZE},
     task::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next,current_user_token, TaskStatus,
-        get_current_status,get_systimecall_times,get_run_times
+        get_current_status,get_systimecall_times,get_run_times,get_current_aera
     }, timer::get_time_us,
-    mm::{PageTable,VirtAddr,frame_alloc},
+    mm::{PageTable,VirtAddr,MapPermission,get_pypage_num
+    },
 };
 
 #[repr(C)]
@@ -135,29 +137,37 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    if _start % PAGE_SIZE !=0 || _port & !0x7 != 0 || _port & 0x7 == 0{
+    let vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
+
+    if _start % PAGE_SIZE !=0 || _port & !0x7 != 0 || _port & 0x7 == 0 || vnums > get_pypage_num(){
         return -1;
     }
-
-    let current_token = current_user_token();
-    let  page_table = PageTable::from_token(current_token);
-
-    let mut address_ptr =  _start;
-    let mut vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
-    //let flags = PTEFlags::V;
-
-    while vnums > 0{
-        let va:VirtAddr = address_ptr.into();
-        let vpage_num = va.floor();
-        if let Some(_pte) = page_table.find_pte(vpage_num){
-            return -1;
-        }
-        let _frame = frame_alloc().unwrap();
-        //page_table.map(vpage_num, frame.ppn, flags);
-        address_ptr += PAGE_SIZE;
-        vnums -= 1;
-    }
     
+    let mut permission = MapPermission::from_bits((_port as u8) << 1).unwrap();
+    permission.set(MapPermission::U, true);
+
+    let start_va = _start.into();
+    let end_va = (_start+_len).into();
+            //let current_token = current_user_token();
+            //let page_table = PageTable::from_token(current_token);
+    let memory = get_current_aera();
+
+    memory.insert_framed_area( start_va, end_va, permission);
+            // let mut address_ptr =  _start;
+            // let mut vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
+
+            // while vnums > 0{
+            //     let va:VirtAddr = address_ptr.into();
+            //     let vpage_num = va.floor();
+            //     if let Some(_pte) = page_table.find_pte(vpage_num){
+            //         return -1;
+            //     }
+            //     let _frame = frame_alloc().unwrap();
+            //     //page_table.map(vpage_num, frame.ppn, flags);
+            //     address_ptr += PAGE_SIZE;
+            //     vnums -= 1;
+            // }
+            
 
     0
 }

@@ -56,6 +56,10 @@ impl StackFrameAllocator {
         self.end = r.0;
         // trace!("last {} Physical Frames.", self.end - self.current);
     }
+
+    pub fn last_num(&self) -> usize{
+        self.end - self.current
+    }
 }
 impl FrameAllocator for StackFrameAllocator {
     fn new() -> Self {
@@ -117,6 +121,10 @@ pub fn frame_dealloc(ppn: PhysPageNum) {
     FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
 }
 
+/// get the last physical page frame number
+pub fn get_pypage_num() ->usize{
+    FRAME_ALLOCATOR.exclusive_access().last_num()
+}
 #[allow(unused)]
 /// a simple test for frame allocator
 pub fn frame_allocator_test() {

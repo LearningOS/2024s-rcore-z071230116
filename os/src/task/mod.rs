@@ -16,6 +16,7 @@ mod task;
 
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::MemorySet;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -99,9 +100,6 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
         inner.tasks[cur].task_status = TaskStatus::Ready;
-        //let time = get_time_us();
-        //inner.tasks[cur].task_times += time-inner.tasks[cur].start_time; 
-        //inner.tasks[cur].start_time = time;
     }
 
     /// Change the status of current `Running` task into `Exited`.
@@ -109,7 +107,6 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
         inner.tasks[cur].task_status = TaskStatus::Exited;
-        //inner.tasks[cur].task_times += get_time_us()-inner.tasks[cur].start_time;
     }
 
     /// Find next task to run and return task id.
@@ -194,6 +191,14 @@ impl TaskManager {
         let inner = self.inner.exclusive_access();
         inner.current_task
     }
+
+    fn get_current_memory_set(&self) ->&'static mut MemorySet{
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].get_memory_set()
+    }
+
+    
 }
 
 /// Run the first task in task list.
@@ -266,4 +271,9 @@ pub fn get_current_status() ->TaskStatus{
 /// Get the current_status
 pub fn get_current_pid() ->usize{
     TASK_MANAGER.get_current_pid()
+}
+
+/// Get the current aera
+pub fn get_current_aera() ->&'static mut MemorySet{
+    TASK_MANAGER.get_current_memory_set()
 }
