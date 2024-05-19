@@ -2,12 +2,12 @@
 
 
 use crate::{
-    config::MAX_SYSCALL_NUM,
+    config::{MAX_SYSCALL_NUM,PAGE_SIZE},
     task::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next,current_user_token, TaskStatus,
         get_current_status,get_systimecall_times,get_run_times
     }, timer::get_time_us,
-    mm::{PageTable,VirtAddr},
+    mm::{PageTable,VirtAddr,frame_alloc},
 };
 
 #[repr(C)]
@@ -84,11 +84,8 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    error!("kernel: sys_task_info NOT IMPLEMENTED YET!");
     let status = get_current_status();
-    error!("kernel: status {:?}",status);
     let syscall_times = get_systimecall_times();
-    error!("kernel: syscall_times {:?}",syscall_times);
     
     let _current_token = current_user_token();
     let _page_table = PageTable::from_token(_current_token);
@@ -118,7 +115,6 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         }
     }
     let time: usize = ((get_run_times()/1_000_000 & 0xffff) * 1000 + get_run_times()%1_000_000/ 1000) as usize;
-    error!("kernel: time {}",time);
 
     for i in time.to_ne_bytes() {                        
         _va = VirtAddr::from(_address);
@@ -139,7 +135,31 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+    if _start % PAGE_SIZE !=0 || _port & !0x7 != 0 || _port & 0x7 == 0{
+        return -1;
+    }
+
+    let current_token = current_user_token();
+    let  page_table = PageTable::from_token(current_token);
+
+    let mut address_ptr =  _start;
+    let mut vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
+    //let flags = PTEFlags::V;
+
+    while vnums > 0{
+        let va:VirtAddr = address_ptr.into();
+        let vpage_num = va.floor();
+        if let Some(_pte) = page_table.find_pte(vpage_num){
+            return -1;
+        }
+        let _frame = frame_alloc().unwrap();
+        //page_table.map(vpage_num, frame.ppn, flags);
+        address_ptr += PAGE_SIZE;
+        vnums -= 1;
+    }
+    
+
+    0
 }
 
 // YOUR JOB: Implement munmap.

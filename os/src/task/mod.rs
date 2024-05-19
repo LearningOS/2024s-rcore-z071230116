@@ -151,7 +151,6 @@ impl TaskManager {
             inner.tasks[next].task_status = TaskStatus::Running;
             if inner.tasks[next].start_time == 0{
                 inner.tasks[next].start_time = get_time_us();
-                error!("the start_time is {}",inner.tasks[next].start_time);
             }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
@@ -175,8 +174,6 @@ impl TaskManager {
     fn get_run_times(&self) -> usize{
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        error!("the start time {}",inner.tasks[current].start_time);
-        error!("get_time_us {}",get_time_us());
         inner.tasks[current].task_times = get_time_us()-inner.tasks[current].start_time;
         inner.tasks[current].task_times
     }
