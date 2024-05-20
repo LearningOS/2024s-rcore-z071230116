@@ -45,24 +45,70 @@ mod process;
 
 use fs::*;
 use process::*;
+use crate::task::add_syscall_times;
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
     match syscall_id {
-        SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),
-        SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
-        SYSCALL_EXIT => sys_exit(args[0] as i32),
-        SYSCALL_YIELD => sys_yield(),
-        SYSCALL_GETPID => sys_getpid(),
-        SYSCALL_FORK => sys_fork(),
-        SYSCALL_EXEC => sys_exec(args[0] as *const u8),
-        SYSCALL_WAITPID => sys_waitpid(args[0] as isize, args[1] as *mut i32),
-        SYSCALL_GET_TIME => sys_get_time(args[0] as *mut TimeVal, args[1]),
-        SYSCALL_TASK_INFO => sys_task_info(args[0] as *mut TaskInfo),
-        SYSCALL_MMAP => sys_mmap(args[0], args[1], args[2]),
-        SYSCALL_MUNMAP => sys_munmap(args[0], args[1]),
-        SYSCALL_SBRK => sys_sbrk(args[0] as i32),
-        SYSCALL_SPAWN => sys_spawn(args[0] as *const u8),
-        SYSCALL_SET_PRIORITY => sys_set_priority(args[0] as isize),
+        SYSCALL_READ => {
+            add_syscall_times(SYSCALL_READ);
+            sys_read(args[0], args[1] as *const u8, args[2])
+        },
+        SYSCALL_WRITE => {
+            add_syscall_times(SYSCALL_WRITE);
+            sys_write(args[0], args[1] as *const u8, args[2])
+        },
+        SYSCALL_EXIT => {
+            add_syscall_times(SYSCALL_EXIT);
+            sys_exit(args[0] as i32)
+        },
+        SYSCALL_YIELD => {
+            add_syscall_times(SYSCALL_YIELD);
+            sys_yield()
+        },
+        SYSCALL_GETPID => {
+            add_syscall_times(SYSCALL_GETPID);
+            sys_getpid()
+        },
+        SYSCALL_FORK => {
+            add_syscall_times(SYSCALL_FORK);
+            sys_fork()
+        },
+        SYSCALL_EXEC => {
+            add_syscall_times(SYSCALL_EXEC);
+            sys_exec(args[0] as *const u8)
+        },
+        SYSCALL_WAITPID => {
+            add_syscall_times(SYSCALL_WAITPID);
+            sys_waitpid(args[0] as isize, args[1] as *mut i32)
+        },
+        SYSCALL_GET_TIME => {
+            add_syscall_times(SYSCALL_GET_TIME);
+            sys_get_time(args[0] as *mut TimeVal, args[1])
+        },
+        SYSCALL_TASK_INFO => {
+            add_syscall_times(SYSCALL_TASK_INFO);
+            sys_task_info(args[0] as *mut TaskInfo)
+        },
+        SYSCALL_MMAP => {
+            add_syscall_times(SYSCALL_MMAP);
+            sys_mmap(args[0], args[1], args[2])
+        },
+        SYSCALL_MUNMAP => {
+            add_syscall_times(SYSCALL_MUNMAP);
+            sys_munmap(args[0], args[1])
+        },
+        SYSCALL_SBRK => {
+            add_syscall_times(SYSCALL_SBRK);
+            sys_sbrk(args[0] as i32)
+        },
+        SYSCALL_SPAWN => {
+            add_syscall_times(SYSCALL_SPAWN);
+            sys_spawn(args[0] as *const u8)   
+        },
+        SYSCALL_SET_PRIORITY => {
+            add_syscall_times(SYSCALL_SET_PRIORITY);
+            sys_set_priority(args[0] as isize)   
+        },
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }
