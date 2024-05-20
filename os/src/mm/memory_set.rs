@@ -262,6 +262,28 @@ impl MemorySet {
             false
         }
     }
+
+    /// has map
+    pub fn has_maped(&mut self,
+        start_va: usize,
+        vnums: usize) -> bool{
+            let mut num = vnums;            
+            let mut address = start_va;
+            
+            while num > 0{                
+                let vd:VirtAddr = address.into();
+                let vp = vd.floor();
+                if let Some(_pageentry) = self.page_table.find_pte(vp){
+                    if _pageentry.is_valid(){
+                        return true;
+                    }                    
+                }                
+                address += PAGE_SIZE; 
+                num -= 1;
+            }
+            return false;
+            
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

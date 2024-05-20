@@ -148,32 +148,19 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 
     let start_va = _start.into();
     let end_va = (_start+_len).into();
-            //let current_token = current_user_token();
-            //let page_table = PageTable::from_token(current_token);
     let memory = get_current_aera();
+    if memory.has_maped(_start,vnums){
+        error!("this is has_maped!");
+        return -1;
+    }
 
-    memory.insert_framed_area( start_va, end_va, permission);
-            // let mut address_ptr =  _start;
-            // let mut vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
-
-            // while vnums > 0{
-            //     let va:VirtAddr = address_ptr.into();
-            //     let vpage_num = va.floor();
-            //     if let Some(_pte) = page_table.find_pte(vpage_num){
-            //         return -1;
-            //     }
-            //     let _frame = frame_alloc().unwrap();
-            //     //page_table.map(vpage_num, frame.ppn, flags);
-            //     address_ptr += PAGE_SIZE;
-            //     vnums -= 1;
-            // }
-            
-
+    memory.insert_framed_area( start_va, end_va, permission);            
     0
 }
 
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
     -1
 }
