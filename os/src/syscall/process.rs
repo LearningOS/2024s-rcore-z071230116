@@ -161,8 +161,17 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
 
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+    if _start % PAGE_SIZE !=0 || _len % PAGE_SIZE != 0{
+        return -1;
+    }
+    let vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
+
+    let memory = get_current_aera();
+    if memory.is_all_map(_start,vnums) == false{
+        return -1;
+    }
+    memory.unmap_len(_start,_len);
+    0
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
