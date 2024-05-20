@@ -10,6 +10,8 @@ use alloc::sync::{Arc, Weak};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::RefMut;
+use crate::timer::get_time_us;
+use crate::config::MAX_SYSCALL_NUM;
 
 /// Task control block structure
 ///
@@ -71,6 +73,13 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// The time of current start
+    pub start_time:usize,
+    /// The task run time
+    pub task_times: usize,
+    /// The times of syscall
+    pub task_syscall_times: [u32; MAX_SYSCALL_NUM],
 }
 
 impl TaskControlBlockInner {
@@ -94,6 +103,8 @@ impl TaskControlBlockInner {
             self.fd_table.len() - 1
         }
     }
+
+
 }
 
 impl TaskControlBlock {
@@ -135,6 +146,9 @@ impl TaskControlBlock {
                     ],
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    start_time:0,
+                    task_times:0,
+                    task_syscall_times:[0;MAX_SYSCALL_NUM]
                 })
             },
         };
@@ -216,6 +230,9 @@ impl TaskControlBlock {
                     fd_table: new_fd_table,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    start_time:0,
+                    task_times:0,
+                    task_syscall_times:[0;MAX_SYSCALL_NUM]
                 })
             },
         });
@@ -261,6 +278,38 @@ impl TaskControlBlock {
             None
         }
     }
+
+    /// get memory_set
+    pub fn get_memory_set(&self) ->&mut MemorySet{
+        unsafe { (&mut self.inner_exclusive_access().memory_set as *mut MemorySet).as_mut().unwrap()}
+    }
+
+    /// add systemall
+    pub fn add_systemcall_time(&self,_syscallid:usize){
+        let mut inner = self.inner_exclusive_access();
+        inner.task_syscall_times[_syscallid] += 1;        
+    }
+    
+    /// get run time
+    pub fn get_run_times(&self) -> Option<usize>{
+        let mut inner = self.inner_exclusive_access();
+        inner.task_times = get_time_us() - inner.start_time;
+        Some(inner.task_times)    
+    }
+    
+    ///get systime call time
+    pub fn get_systimecall_times(&self) ->Option<[u32;MAX_SYSCALL_NUM]>{
+        let inner = self.inner_exclusive_access();
+        Some(inner.task_syscall_times)
+    }
+    
+    ///get status
+    pub fn get_status(&self) ->Option<TaskStatus>{
+        let inner = self.inner_exclusive_access();
+        Some(inner.task_status)
+    }
+        
+    
 }
 
 #[derive(Copy, Clone, PartialEq)]

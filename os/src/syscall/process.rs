@@ -1,15 +1,15 @@
 //! Process management syscalls
-//!
 use alloc::sync::Arc;
-
+use core::borrow::BorrowMut;
 use crate::{
-    config::MAX_SYSCALL_NUM,
+    config::{MAX_SYSCALL_NUM,PAGE_SIZE},
     fs::{open_file, OpenFlags},
-    mm::{translated_refmut, translated_str},
+    mm::{PageTable,VirtAddr,MapPermission,get_pypage_num,translated_refmut, translated_str},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,
+        add_task, is_full,current_task, current_user_token, exit_current_and_run_next,
+        suspend_current_and_run_next, TaskStatus,TaskControlBlock
     },
+    timer::get_time_us,
 };
 
 #[repr(C)]
@@ -118,40 +118,131 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    let _us = get_time_us();    
+    let _sec:u64 = (_us / 1_000_000) as u64;
+    let _usec:u64 = (_us % 1_000_000) as u64;      
+    let time = [_sec,_usec];
+     
+    let _current_token = current_user_token();
+    let _page_table = PageTable::from_token(_current_token);
+
+    let mut _address = _ts as usize;
+
+    let mut _va = VirtAddr::from(_address);
+    let mut vpn = _va.floor(); 
+    let mut ppn = _page_table.translate(vpn).unwrap().ppn();
+    let mut page =  ppn.get_bytes_array();
+    let mut _offset = _va.page_offset();
+
+    for items in time{
+        let item  = items.to_ne_bytes();
+        for i in item {                        
+            _va = VirtAddr::from(_address);
+            if vpn != _va.floor(){
+                vpn = _va.floor();
+                ppn = _page_table.translate(vpn).unwrap().ppn();
+                page =  ppn.get_bytes_array();
+            }
+            _offset = _va.page_offset();
+            page[_offset] = i;
+            _address += 1 as usize;
+        }        
+    }
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    let status = current_task().unwrap().get_status().unwrap();
+    let syscall_times = current_task().unwrap().get_systimecall_times().unwrap();
+    
+    let _current_token = current_user_token();
+    let _page_table = PageTable::from_token(_current_token);
+
+    let mut _address = _ti as usize;
+    let mut _va = VirtAddr::from(_address);
+    let mut vpn = _va.floor(); 
+    let mut ppn = _page_table.translate(vpn).unwrap().ppn();
+    let mut page =  ppn.get_bytes_array();
+    let mut _offset = _va.page_offset(); 
+    let _info_address = (&mut page[_offset] as *const _) as *mut TaskInfo;
+    unsafe {
+        (*_info_address).status =   status;    
+    }
+    for items in syscall_times{
+        let item  = items.to_ne_bytes();
+        for i in item {                        
+            _va = VirtAddr::from(_address);
+            if vpn != _va.floor(){
+                vpn = _va.floor();
+                ppn = _page_table.translate(vpn).unwrap().ppn();
+                page =  ppn.get_bytes_array();            
+            }
+            _offset = _va.page_offset();
+            page[_offset] = i;    
+            _address += 1 as usize;
+        }
+    }
+    let run_time =current_task().unwrap().borrow_mut().get_run_times().unwrap(); 
+    let time: usize = ((run_time/1_000_000 & 0xffff) * 1000 + run_time%1_000_000/ 1000) as usize;
+
+    for i in time.to_ne_bytes() {                        
+        _va = VirtAddr::from(_address);
+        if vpn != _va.floor(){
+            vpn = _va.floor();
+            ppn = _page_table.translate(vpn).unwrap().ppn();
+            page =  ppn.get_bytes_array();            
+        }
+        _offset = _va.page_offset();
+        page[_offset] = i;
+        _address += 1 as usize;
+    }
+
+
+    0
 }
 
 /// YOUR JOB: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
+    let vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
+
+    if _start % PAGE_SIZE !=0 || _port & !0x7 != 0 || _port & 0x7 == 0 || vnums > get_pypage_num(){
+        return -1;
+    }
+    
+    let mut permission = MapPermission::from_bits((_port as u8) << 1).unwrap();
+    permission.set(MapPermission::U, true);
+
+    let start_va = _start.into();
+    let end_va = (_start+_len).into();
+    let current = current_task().unwrap();
+    let memory = current.get_memory_set();
+    if memory.has_maped(_start,vnums){
+        error!("this is has_maped!");
+        return -1;
+    }
+
+    memory.insert_framed_area( start_va, end_va, permission);            
+    0
 }
 
 /// YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    if _start % PAGE_SIZE !=0 || _len % PAGE_SIZE != 0{
+        return -1;
+    }
+    let vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
+
+    let current = current_task().unwrap();
+    let memory = current.get_memory_set();  
+    if memory.is_all_map(_start,vnums) == false{
+        return -1;
+    }
+    memory.unmap_len(_start,_len);
+    0
 }
 
 /// change data segment size
@@ -171,7 +262,27 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if is_full() {
+        error!("this is full");
+        return  -1 ;
+    }
+    let token = current_user_token();
+    let current_task = current_task().unwrap();    
+    let path = translated_str(token, _path);
+
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        
+        let all_data = app_inode.read_all();
+        let tcb = Arc::new(TaskControlBlock::new(all_data.as_slice()));
+        tcb.inner_exclusive_access().parent = Some(Arc::downgrade(&current_task));
+        current_task.inner_exclusive_access().children.push(tcb.clone());
+        add_task(tcb.clone()); 
+        tcb.pid.0 as isize
+    } else {
+        error!("no exist the file {}",path.as_str());
+        -1
+    }
+    
 }
 
 // YOUR JOB: Set task priority.

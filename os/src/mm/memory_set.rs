@@ -318,6 +318,69 @@ impl MemorySet {
             false
         }
     }
+
+    /// has map
+    pub fn has_maped(&mut self,start_va: usize,vnums: usize) -> bool{
+        let mut num = vnums;            
+        let mut address = start_va;
+        
+        while num > 0{                
+            let vd:VirtAddr = address.into();
+            let vp = vd.floor();
+            if let Some(_pageentry) = self.page_table.find_pte(vp){
+                if _pageentry.is_valid(){
+                    return true;
+                }                    
+            }                
+            address += PAGE_SIZE; 
+            num -= 1;
+        }
+        return false;
+        
+}
+
+    /// test is or not all map
+    pub fn is_all_map(&self,start_va: usize,vnums: usize) -> bool{
+        let mut num = vnums;            
+            let mut address = start_va;
+            
+            while num > 0{                
+                let vd:VirtAddr = address.into();
+                let vp = vd.floor();
+                match self.page_table.find_pte(vp){
+                    None =>return false,
+                    _ => (),
+                }                
+                address += PAGE_SIZE; 
+                num -= 1;
+            }
+            return true;
+    }
+
+    /// unmap a _start
+
+    #[allow(unused)]
+    pub fn unmap_len(&mut self, _start:usize,_len:usize){
+        let page_nums = _len / PAGE_SIZE;        
+        let aeras = &mut self.areas;
+        let vp:VirtAddr = _start.into();
+        let mut vpn = vp.floor();
+
+        let end_vp:VirtAddr = (_start + _len).into();    
+        let end_vpn = end_vp.ceil();
+
+        for mut aera in  &mut *aeras{            
+            let vr_start =aera.vpn_range.get_start();
+            let vr_end =aera.vpn_range.get_end();
+            if vpn.0 == vr_start.0{
+                aera.unmap(&mut self.page_table);
+                vpn = aera.vpn_range.get_end();
+                if vpn.0 == end_vpn.0{
+                    break;
+                }
+            }      
+        }
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

@@ -4,6 +4,7 @@ use crate::sync::UPSafeCell;
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use lazy_static::*;
+use crate::config::MAX_PID;
 ///A array of `TaskControlBlock` that is thread-safe
 pub struct TaskManager {
     ready_queue: VecDeque<Arc<TaskControlBlock>>,
@@ -25,6 +26,11 @@ impl TaskManager {
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
         self.ready_queue.pop_front()
     }
+
+    /// get pid number
+    pub fn pid_num(&self) -> usize{
+        self.ready_queue.len()
+    }
 }
 
 lazy_static! {
@@ -43,4 +49,14 @@ pub fn add_task(task: Arc<TaskControlBlock>) {
 pub fn fetch_task() -> Option<Arc<TaskControlBlock>> {
     //trace!("kernel: TaskManager::fetch_task");
     TASK_MANAGER.exclusive_access().fetch()
+}
+
+/// is max 
+pub fn is_full() -> bool{
+    let num = TASK_MANAGER.exclusive_access().pid_num();
+    error!("the num is {}",num);
+    if MAX_PID <= num{
+        return true;
+    }
+    false
 }
