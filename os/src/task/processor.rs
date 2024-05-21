@@ -4,7 +4,6 @@
 //! the current running state of CPU is recorded,
 //! and the replacement and transfer of control flow of different applications are executed.
 
-use core::borrow::BorrowMut;
 
 use super::__switch;
 use super::{fetch_task, TaskStatus};
@@ -117,6 +116,8 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     }
 }
 
+//get current pid
+#[allow(unused)]
 fn get_current_pid() ->Option<usize>{
     let current = PROCESSOR.exclusive_access().current();
     match current {
@@ -127,12 +128,8 @@ fn get_current_pid() ->Option<usize>{
     }
 }
 
+/// add current pid
 pub fn add_syscall_times(syscallid:usize){
-    let current = PROCESSOR.exclusive_access().current();
-    match current {
-        Some(_current) =>{        
-            _current.borrow_mut().add_systemcall_time(syscallid)
-        },
-        None =>(),
-    }
+    let current = current_task().unwrap();
+    current.add_systemcall_time(syscallid);
 }

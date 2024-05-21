@@ -254,26 +254,30 @@ impl TaskControlBlock {
     }
 
     /// get memory_set
-    pub fn get_memory_set(&mut self) ->&mut MemorySet{
-        unsafe { (& mut self.inner_exclusive_access().memory_set as *mut MemorySet).as_mut().unwrap()}
+    pub fn get_memory_set(&self) ->&mut MemorySet{
+        unsafe { (&mut self.inner_exclusive_access().memory_set as *mut MemorySet).as_mut().unwrap()}
     }
 
-    pub fn add_systemcall_time(&mut self,_syscallid:usize){
+    /// add systemall
+    pub fn add_systemcall_time(&self,_syscallid:usize){
         let mut inner = self.inner_exclusive_access();
         inner.task_syscall_times[_syscallid] += 1;        
     }
     
-    pub fn get_run_times(&mut self) -> Option<usize>{
+    /// get run time
+    pub fn get_run_times(&self) -> Option<usize>{
         let mut inner = self.inner_exclusive_access();
         inner.task_times = get_time_us() - inner.start_time;
         Some(inner.task_times)    
     }
     
+    ///get systime call time
     pub fn get_systimecall_times(&self) ->Option<[u32;MAX_SYSCALL_NUM]>{
         let inner = self.inner_exclusive_access();
         Some(inner.task_syscall_times)
     }
     
+    ///get status
     pub fn get_status(&self) ->Option<TaskStatus>{
         let inner = self.inner_exclusive_access();
         Some(inner.task_status)

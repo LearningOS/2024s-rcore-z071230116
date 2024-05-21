@@ -221,7 +221,8 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 
     let start_va = _start.into();
     let end_va = (_start+_len).into();
-    let memory = current_task().unwrap().get_memory_set();
+    let current = current_task().unwrap();
+    let memory = current.get_memory_set();
     if memory.has_maped(_start,vnums){
         error!("this is has_maped!");
         return -1;
@@ -238,7 +239,8 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     }
     let vnums = (_len -1 + PAGE_SIZE) / PAGE_SIZE;
 
-    let memory = current_task().unwrap().get_memory_set();
+    let current = current_task().unwrap();
+    let memory = current.get_memory_set();
     if memory.is_all_map(_start,vnums) == false{
         return -1;
     }
