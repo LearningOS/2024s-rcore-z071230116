@@ -8,8 +8,8 @@ use crate::{
     loader::get_app_data_by_name,
     mm::{PageTable,VirtAddr,MapPermission,get_pypage_num,translated_refmut, translated_str},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus
+        add_task, is_full,current_task, current_user_token, exit_current_and_run_next,
+        suspend_current_and_run_next, TaskStatus,TaskControlBlock
     },
     timer::get_time_us,
 };
@@ -265,7 +265,26 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if is_full() {
+        error!("this is full");
+        return  -1 ;
+    }
+    let token = current_user_token();
+    let current_task = current_task().unwrap();    
+    let path = translated_str(token, _path);
+    
+    if let Some(data) = get_app_data_by_name(path.as_str()) {      
+        let tcb = Arc::new(TaskControlBlock::new(data));
+        tcb.inner_exclusive_access().parent = Some(Arc::downgrade(&current_task));
+        current_task.inner_exclusive_access().children.push(tcb.clone());
+        //let _taskcontext = tcb.inner_exclusive_access().task_cx;
+        add_task(tcb.clone()); 
+        
+        tcb.pid.0 as isize
+    } else {
+        error!("no exist the file {}",path.as_str());
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
