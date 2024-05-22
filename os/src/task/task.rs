@@ -76,6 +76,13 @@ pub struct TaskControlBlockInner {
     pub task_times: usize,
     /// The times of syscall
     pub task_syscall_times: [u32; MAX_SYSCALL_NUM],
+
+    ///The stride 
+    pub stride: usize,
+
+    /// The priority 
+    pub priority:usize,
+
 }
 
 impl TaskControlBlockInner {
@@ -130,7 +137,9 @@ impl TaskControlBlock {
                     program_brk: user_sp,
                     start_time:0,
                     task_times:0,
-                    task_syscall_times:[0;MAX_SYSCALL_NUM]
+                    task_syscall_times:[0;MAX_SYSCALL_NUM],
+                    stride:0,
+                    priority:2
                 })
             },
         };
@@ -206,7 +215,9 @@ impl TaskControlBlock {
                     program_brk: parent_inner.program_brk,
                     start_time:0,
                     task_times:0,
-                    task_syscall_times:[0;MAX_SYSCALL_NUM]
+                    task_syscall_times:[0;MAX_SYSCALL_NUM],
+                    stride:0,
+                    priority:2
                 })
             },
         });

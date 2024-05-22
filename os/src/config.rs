@@ -26,3 +26,6 @@ pub const MEMORY_END: usize = 0x88000000;
 
 /// the max number of pid
 pub const MAX_PID:usize = 500;
+
+/// the big stride is 
+pub const  BIG_STRIDE:usize = 2048;

@@ -285,13 +285,19 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         error!("no exist the file {}",path.as_str());
         -1
     }
+
 }
 
 // YOUR JOB: Set task priority.
 pub fn sys_set_priority(_prio: isize) -> isize {
     trace!(
+
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if _prio < 2{
+        return -1;
+    }
+    current_task().unwrap().inner_exclusive_access().priority = _prio as usize;
+    _prio   
 }

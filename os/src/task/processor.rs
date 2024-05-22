@@ -13,6 +13,7 @@ use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
 use crate::timer::get_time_us;
+use crate::config::BIG_STRIDE;
 
 
 /// Processor management structure
@@ -64,6 +65,7 @@ pub fn run_tasks() {
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
+            task_inner.stride += BIG_STRIDE /task_inner.priority;
             if task_inner.start_time == 0{
                 task_inner.start_time = get_time_us();
             }
