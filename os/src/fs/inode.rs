@@ -52,6 +52,11 @@ impl OSInode {
         }
         v
     }
+
+    pub fn read_node(&self) -> Arc<Inode>{
+        self.inner.exclusive_access().inode.clone()
+
+    }
 }
 
 lazy_static! {

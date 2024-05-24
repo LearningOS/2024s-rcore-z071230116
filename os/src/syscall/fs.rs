@@ -1,5 +1,12 @@
 //! File and filesystem-related syscalls
-use crate::fs::{open_file, OpenFlags, Stat};
+
+use core::borrow::Borrow;
+use core::ops::Deref;
+use core::ptr;
+
+use alloc::sync::Arc;
+
+use crate::fs::{open_file, OpenFlags, Stat,StatMode,OSInode};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
 
@@ -76,12 +83,32 @@ pub fn sys_close(fd: usize) -> isize {
 }
 
 /// YOUR JOB: Implement fstat.
-pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_fstat NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
+    let dev = 0u64;
+    let mut ino = 0u64;
+    let mut mode :StatMode = StatMode::NULL;
+    let mut nlink = 1u32;
+    let pad: [u64; 7] = [0;7];
+
+    let token = current_user_token();
+    let task = current_task().unwrap();
+    let inner = task.inner_exclusive_access();
+    if fd >= inner.fd_table.len() {
+        return -1;
+    }
+    if let Some(file) = &inner.fd_table[fd] {
+        let file = file.clone();
+        drop(inner);
+        unsafe{
+            let inode:OSInode = file as * ptr;
+        }        
+        let _aa = inode.read_node();
+
+
+        0
+    } else {
+        -1
+    }
 }
 
 /// YOUR JOB: Implement linkat.
