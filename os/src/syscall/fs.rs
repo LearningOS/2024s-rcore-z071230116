@@ -1,13 +1,7 @@
 //! File and filesystem-related syscalls
 
-use core::borrow::Borrow;
-use core::ops::Deref;
-use core::ptr;
-
-use alloc::sync::Arc;
-
-use crate::fs::{open_file, OpenFlags, Stat,StatMode,OSInode};
-use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
+use crate::fs::{open_file, find_file,OpenFlags, Stat};
+use crate::mm::{translated_byte_buffer, translated_str, UserBuffer,VirtAddr,PageTable};
 use crate::task::{current_task, current_user_token};
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
@@ -83,41 +77,57 @@ pub fn sys_close(fd: usize) -> isize {
 }
 
 /// YOUR JOB: Implement fstat.
-pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
-    let dev = 0u64;
-    let mut ino = 0u64;
-    let mut mode :StatMode = StatMode::NULL;
-    let mut nlink = 1u32;
-    let pad: [u64; 7] = [0;7];
-
-    let token = current_user_token();
+pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
     let task = current_task().unwrap();
     let inner = task.inner_exclusive_access();
-    if fd >= inner.fd_table.len() {
+    if _fd >= inner.fd_table.len() {
         return -1;
     }
-    if let Some(file) = &inner.fd_table[fd] {
+    if let Some(file) = &inner.fd_table[_fd] {
         let file = file.clone();
         drop(inner);
-        unsafe{
-            let inode:OSInode = file as * ptr;
-        }        
-        let _aa = inode.read_node();
-
-
-        0
-    } else {
-        -1
+        let _stat = file.get_stat();
+        let _current_token = current_user_token();
+        let _page_table = PageTable::from_token(_current_token);
+        let mut _address = _st as usize;
+        let mut _va = VirtAddr::from(_address);
+        let mut vpn = _va.floor(); 
+        let mut ppn = _page_table.translate(vpn).unwrap().ppn();
+        let mut page =  ppn.get_bytes_array();
+        let mut _offset = _va.page_offset(); 
+        let bytes:[u8;80] = unsafe {     
+            core::mem::transmute(_stat)
+        }; 
+        for i in bytes {                        
+            _va = VirtAddr::from(_address);
+            if vpn != _va.floor(){
+                vpn = _va.floor();
+                ppn = _page_table.translate(vpn).unwrap().ppn();
+                page =  ppn.get_bytes_array();            
+            }
+            _offset = _va.page_offset();
+            page[_offset] = i;
+            _address += 1 as usize;
+        }
+        return 0;
     }
+    -1
 }
 
 /// YOUR JOB: Implement linkat.
 pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_linkat NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    let token = current_user_token();
+    let old_path = translated_str(token, _old_name);
+    //let new_path = translated_str(token, _new_name);
+    if let Some(old_inode) = find_file(&old_path){
+        old_inode.add_link_num();
+        return 0;
+    }else{
+        return -1;
+    }
+    
+//find the old_name disknode
+//create the node and node is disknode
 }
 
 /// YOUR JOB: Implement unlinkat.

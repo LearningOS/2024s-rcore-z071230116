@@ -4,7 +4,7 @@
 //!
 //! `UPSafeCell<OSInodeInner>` -> `OSInode`: for static `ROOT_INODE`,we
 //! need to wrap `OSInodeInner` into `UPSafeCell`
-use super::File;
+use super::{File, StatMode,Stat};
 use crate::drivers::BLOCK_DEVICE;
 use crate::mm::UserBuffer;
 use crate::sync::UPSafeCell;
@@ -20,7 +20,7 @@ use lazy_static::*;
 pub struct OSInode {
     readable: bool,
     writable: bool,
-    inner: UPSafeCell<OSInodeInner>,
+    inner: UPSafeCell<OSInodeInner>,    
 }
 /// The OS inode inner in 'UPSafeCell'
 pub struct OSInodeInner {
@@ -34,7 +34,7 @@ impl OSInode {
         Self {
             readable,
             writable,
-            inner: unsafe { UPSafeCell::new(OSInodeInner { offset: 0, inode }) },
+            inner: unsafe { UPSafeCell::new(OSInodeInner { offset: 0, inode}) },
         }
     }
     /// read all data from the inode
@@ -53,9 +53,17 @@ impl OSInode {
         v
     }
 
+    ///  read node
     pub fn read_node(&self) -> Arc<Inode>{
         self.inner.exclusive_access().inode.clone()
 
+    }
+
+
+    /// add link num
+    pub fn add_link_num(&self){
+        let inner =&self.inner.exclusive_access().inode;        
+        inner.add_nlink();
     }
 }
 
@@ -129,6 +137,18 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     }
 }
 
+/// find a file 
+/// 
+pub fn find_file(name: &str) ->Option<Arc<OSInode>>{
+    if let Some(inode) = ROOT_INODE.find(name){        
+        Some(Arc::new(OSInode::new(true, false, inode)))
+    }else{
+        None
+    }
+}
+
+//
+
 impl File for OSInode {
     fn readable(&self) -> bool {
         self.readable
@@ -159,5 +179,26 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
+    }
+
+    fn get_stat(&self) -> Stat{                
+
+        let inner = self.inner.exclusive_access();
+        let _inode = &inner.inode;
+        let ino = _inode.get_inode_id();
+        let tisk_node = _inode.is_dir_node();
+        let nlink = _inode.get_nlink();
+        let mut mode = StatMode::FILE;
+        if tisk_node == true{
+            mode = StatMode::DIR;
+        }
+        let stat = Stat {
+            dev: 0u64,
+            ino: ino,    
+            mode: mode,
+            nlink: nlink,
+            pad: [0; 7],
+        };
+        stat
     }
 }
