@@ -62,8 +62,25 @@ impl OSInode {
 
     /// add link num
     pub fn add_link_num(&self){
-        let inner =&self.inner.exclusive_access().inode;        
-        inner.add_nlink();
+        let inode =&self.inner.exclusive_access().inode;        
+        inode.add_nlink();
+    }
+
+    /// sub link num
+    pub fn sub_link_num(&self){
+        let inode =&self.inner.exclusive_access().inode;        
+        inode.sub_nlink();
+    }
+
+    /// add link 
+    pub fn get_inode_id(&self) -> u32{
+        let inode =&self.inner.exclusive_access().inode;
+        inode.get_inode_id()
+    }
+
+    /// get link num
+    pub fn get_link_num(&self) ->u32{
+        self.inner.exclusive_access().inode.get_nlink()
     }
 }
 
@@ -115,23 +132,30 @@ impl OpenFlags {
 
 /// Open a file
 pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
+    ROOT_INODE.ls();
     let (readable, writable) = flags.read_write();
     if flags.contains(OpenFlags::CREATE) {
         if let Some(inode) = ROOT_INODE.find(name) {
+            error!("open exist inode id is {}",inode.get_inode_id());
             // clear size
-            inode.clear();
+            inode.clear();                        
             Some(Arc::new(OSInode::new(readable, writable, inode)))
         } else {
             // create file
             ROOT_INODE
                 .create(name)
-                .map(|inode| Arc::new(OSInode::new(readable, writable, inode)))
+                .map(|inode| {
+                    error!("open not exist inode id is {}",inode.get_inode_id());
+                    Arc::new(OSInode::new(readable, writable, inode))
+                })
         }
     } else {
         ROOT_INODE.find(name).map(|inode| {
             if flags.contains(OpenFlags::TRUNC) {
                 inode.clear();
-            }
+            }            
+            error!("name is {}",name);
+            error!("open read only inode id is {}",inode.get_inode_id());
             Arc::new(OSInode::new(readable, writable, inode))
         })
     }
@@ -147,7 +171,16 @@ pub fn find_file(name: &str) ->Option<Arc<OSInode>>{
     }
 }
 
-//
+/// link inode
+pub fn link_inode(name: &str,node_id :u32) -> bool{
+    ROOT_INODE.link_node(name, node_id )
+}
+
+/// unlink_inode
+pub fn unlink_inode(name:&str) -> bool{
+    error!("enter indeos unlink");
+    ROOT_INODE.unlink_node(name)
+}
 
 impl File for OSInode {
     fn readable(&self) -> bool {
@@ -185,7 +218,7 @@ impl File for OSInode {
 
         let inner = self.inner.exclusive_access();
         let _inode = &inner.inode;
-        let ino = _inode.get_inode_id();
+        let ino = _inode.get_inode_id() as u64;
         let tisk_node = _inode.is_dir_node();
         let nlink = _inode.get_nlink();
         let mut mode = StatMode::FILE;

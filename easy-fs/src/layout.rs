@@ -6,7 +6,7 @@ use core::fmt::{Debug, Formatter, Result};
 /// Magic number for sanity check
 const EFS_MAGIC: u32 = 0x3b800001;
 /// The max number of direct inodes
-const INODE_DIRECT_COUNT: usize = 28;
+const INODE_DIRECT_COUNT: usize = 27;
 /// The max length of inode name
 const NAME_LENGTH_LIMIT: usize = 27;
 /// The max number of indirect1 inodes
@@ -86,6 +86,7 @@ pub struct DiskInode {
     pub indirect1: u32,
     pub indirect2: u32,
     type_: DiskInodeType,
+    pub link:u32,
 }
 
 impl DiskInode {
@@ -97,6 +98,7 @@ impl DiskInode {
         self.indirect1 = 0;
         self.indirect2 = 0;
         self.type_ = type_;
+        self.link = 1;
     }
     /// Whether this inode is a directory
     pub fn is_dir(&self) -> bool {
@@ -386,6 +388,27 @@ impl DiskInode {
             start = end_current_block;
         }
         write_size
+    }
+
+    pub fn add_link(&mut self){
+        self.link += 1;
+    }
+
+    pub fn sub_link(&mut self){
+        self.link -= 1;
+    }
+
+    pub fn get_entries(&self,block_device: &Arc<dyn BlockDevice>) -> Vec<DirEntry> {
+        let space_size = self.size as usize;
+        assert!(space_size % DIRENT_SZ == 0);
+        let entry_cnt = self.size as usize/  DIRENT_SZ;
+        let mut entries:Vec<DirEntry> = Vec::new();        
+        for i in (0..entry_cnt){
+            let mut entry = DirEntry::empty();
+            self.read_at(i*DIRENT_SZ, entry.as_bytes_mut(), block_device);            
+            entries.push(entry);
+        }
+            entries
     }
 }
 /// A directory entry

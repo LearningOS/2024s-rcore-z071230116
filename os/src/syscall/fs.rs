@@ -1,6 +1,6 @@
 //! File and filesystem-related syscalls
 
-use crate::fs::{open_file, find_file,OpenFlags, Stat};
+use crate::fs::{open_file, find_file,link_inode,unlink_inode,OpenFlags, Stat};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer,VirtAddr,PageTable};
 use crate::task::{current_task, current_user_token};
 
@@ -118,23 +118,37 @@ pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
 pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
     let token = current_user_token();
     let old_path = translated_str(token, _old_name);
-    //let new_path = translated_str(token, _new_name);
-    if let Some(old_inode) = find_file(&old_path){
-        old_inode.add_link_num();
-        return 0;
-    }else{
-        return -1;
+    let new_path = translated_str(token, _new_name);
+    if let Some(old_inode) = find_file(old_path.as_str()){
+        let node_id = old_inode.get_inode_id();       
+        if link_inode(new_path.as_str(),node_id){
+            error!("old node id is {}",node_id);
+            old_inode.add_link_num();
+            return 0;
+        }
+        
     }
-    
+    -1
 //find the old_name disknode
 //create the node and node is disknode
 }
 
 /// YOUR JOB: Implement unlinkat.
 pub fn sys_unlinkat(_name: *const u8) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_unlinkat NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
+    let token = current_user_token();
+    let path = translated_str(token, _name);
+    if let Some(inode) = find_file(path.as_str()){   
+        error!("**********************");     
+        if unlink_inode(path.as_str()){
+            inode.sub_link_num();
+            if inode.get_link_num() == 0{
+
+            }
+            return 0;
+        }
+        
+    }else{
+        error!("no this path {}",path.as_str());
+    }
     -1
 }
