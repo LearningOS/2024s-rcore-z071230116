@@ -275,7 +275,7 @@ impl Inode {
                     root_inode.write_at(index*DIRENT_SZ, entry.as_bytes(), &self.block_device);
                     index +=1;
                 }
-                root_inode.size = index as u32;
+                root_inode.size = (index * DIRENT_SZ) as u32;
           
             });
             return true;        

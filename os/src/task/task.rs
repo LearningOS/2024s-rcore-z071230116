@@ -79,7 +79,7 @@ pub struct TaskControlBlockInner {
     /// The task run time
     pub task_times: usize,
     /// The times of syscall
-    pub task_syscall_times: [u32; MAX_SYSCALL_NUM],
+    pub task_syscall_times: [usize; MAX_SYSCALL_NUM],
 }
 
 impl TaskControlBlockInner {
@@ -298,7 +298,7 @@ impl TaskControlBlock {
     }
     
     ///get systime call time
-    pub fn get_systimecall_times(&self) ->Option<[u32;MAX_SYSCALL_NUM]>{
+    pub fn get_systimecall_times(&self) ->Option<[usize;MAX_SYSCALL_NUM]>{
         let inner = self.inner_exclusive_access();
         Some(inner.task_syscall_times)
     }

@@ -138,12 +138,13 @@ pub fn sys_unlinkat(_name: *const u8) -> isize {
     let token = current_user_token();
     let path = translated_str(token, _name);
     if let Some(inode) = find_file(path.as_str()){   
-        error!("**********************");     
+  
         if unlink_inode(path.as_str()){
             inode.sub_link_num();
             if inode.get_link_num() == 0{
-
+                error!("**********************");     
             }
+            
             return 0;
         }
         

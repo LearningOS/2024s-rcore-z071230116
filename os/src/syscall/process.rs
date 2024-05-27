@@ -267,15 +267,12 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         return  -1 ;
     }
     let token = current_user_token();
-    let current_task = current_task().unwrap();    
     let path = translated_str(token, _path);
-
-    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
-        
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {        
         let all_data = app_inode.read_all();
         let tcb = Arc::new(TaskControlBlock::new(all_data.as_slice()));
-        tcb.inner_exclusive_access().parent = Some(Arc::downgrade(&current_task));
-        current_task.inner_exclusive_access().children.push(tcb.clone());
+        tcb.inner_exclusive_access().parent = Some(Arc::downgrade(&current_task().unwrap()));
+        current_task().unwrap().inner_exclusive_access().children.push(tcb.clone());
         add_task(tcb.clone()); 
         tcb.pid.0 as isize
     } else {
