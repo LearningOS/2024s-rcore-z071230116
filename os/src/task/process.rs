@@ -44,7 +44,7 @@ pub struct ProcessControlBlockInner {
     /// task resource allocator
     pub task_res_allocator: RecycleAllocator,
     /// mutex list
-    pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
+    pub mutex_list: Vec<Option<(usize,Arc<dyn Mutex>)>>,
     /// semaphore list
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
@@ -337,7 +337,6 @@ impl ProcessControlBlock {
     fn bank_algorithm(need: Vec<Vec<i32>>,allocation: Vec<Vec<i32>>,mut available: Vec<i32>) -> bool{
 
         let mut dealloc_sem_status = vec![0;need.len()];
-        error!("the ava is {:?}",&available);
         loop{
             let mut is_dealloc = 0;
             let mut index = 0;

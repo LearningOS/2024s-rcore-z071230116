@@ -36,10 +36,10 @@ pub fn sys_mutex_create(blocking: bool) -> isize {
             .tid
     );
     let process = current_process();
-    let mutex: Option<Arc<dyn Mutex>> = if !blocking {
-        Some(Arc::new(MutexSpin::new()))
+    let mutex: Arc<dyn Mutex> = if !blocking {
+        Arc::new(MutexSpin::new())
     } else {
-        Some(Arc::new(MutexBlocking::new()))
+        Arc::new(MutexBlocking::new())
     };
     let mut process_inner = process.inner_exclusive_access();
     if let Some(id) = process_inner
@@ -49,10 +49,10 @@ pub fn sys_mutex_create(blocking: bool) -> isize {
         .find(|(_, item)| item.is_none())
         .map(|(id, _)| id)
     {
-        process_inner.mutex_list[id] = mutex;
+        process_inner.mutex_list[id] = Some((0,mutex));
         id as isize
     } else {
-        process_inner.mutex_list.push(mutex);
+        process_inner.mutex_list.push(Some((0,mutex)));
         process_inner.mutex_list.len() as isize - 1
     }
 }
@@ -71,17 +71,21 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     );
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
-    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
-
-    drop(process_inner);
-    drop(process);
-    if mutex.get_lock_state(){
-        mutex.lock();
-        return -0xdead;
-    }else{
-        mutex.lock();
-        0
-    }    
+    let node = &process_inner.mutex_list[mutex_id];
+    match node{
+        Some((tid,_mutex))=>{
+            if *tid != 0{
+                return -0xdead;
+            }else{
+                let mutex = Arc::clone(&_mutex);
+                drop(process_inner);
+                drop(process);
+                mutex.lock();                
+            }        
+        },
+        None =>{}
+    }
+    0
 }
 /// mutex unlock syscall
 pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
@@ -97,8 +101,8 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
             .tid
     );
     let process = current_process();
-    let process_inner = process.inner_exclusive_access();
-    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
+    let process_inner = process.inner_exclusive_access();    
+    let mutex = Arc::clone(&process_inner.mutex_list[mutex_id].as_ref().unwrap().1);
     drop(process_inner);
     drop(process);
     mutex.unlock();
@@ -285,7 +289,7 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
-    let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
+    let mutex = Arc::clone(&process_inner.mutex_list[mutex_id].as_ref().unwrap().1);
     drop(process_inner);
     condvar.wait(mutex);
     0
