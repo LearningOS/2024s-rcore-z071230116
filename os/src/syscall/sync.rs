@@ -125,8 +125,27 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
         .find(|(_, item)| item.is_none())
         .map(|(id, _)| id)
     {
-        process_inner.semaphore_list[id] = Some(Arc::new(Semaphore::new(res_count)));
-        for task in process_inner.tasks{
+        process_inner.semaphore_list[id] = Some(Arc::new(Semaphore::new(res_count)));  
+        for task in &process_inner.tasks{
+            match task {
+                Some(task) =>{
+                    if let Some(elem) = task.inner_exclusive_access().semphore_list.get_mut(id) {
+                        *elem = 0;
+                    }
+                    if let Some(elem) = task.inner_exclusive_access().semphore_need.get_mut(id) {
+                        *elem = 0;
+                    }
+                },
+                None =>{},
+            }
+        }
+        error!("id is {}",id);
+        id
+    } else {
+        process_inner
+            .semaphore_list
+            .push(Some(Arc::new(Semaphore::new(res_count))));
+        for task in &process_inner.tasks{
             match task {
                 Some(task) =>{                    
                     task.inner_exclusive_access().semphore_list.push(0);
@@ -135,13 +154,9 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
                 None =>{},
             }
         }
-        id
-    } else {
-        process_inner
-            .semaphore_list
-            .push(Some(Arc::new(Semaphore::new(res_count))));
         process_inner.semaphore_list.len() - 1
     };
+    error!("new id is {}",id);
     id as isize
 }
 /// semaphore up syscall
@@ -159,7 +174,7 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
     );
     let task = current_task().unwrap();
     
-    task.inner_exclusive_access().semphore_list.get_mut(sem_id).unwrap().map(|x| x-1);
+    *task.inner_exclusive_access().semphore_list.get_mut(sem_id).unwrap() -= 1;
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
@@ -185,15 +200,24 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     let process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
     drop(process_inner);    
-    task.inner_exclusive_access().semphore_need.get_mut(sem_id).unwrap() += 1;
+    error!("{} is sem_id",sem_id);
+    error!("the need is {:?}",task.inner_exclusive_access().semphore_need);
+    if let Some(elem) = task.inner_exclusive_access().semphore_need.get_mut(sem_id) {
+        *elem += 1;
+    }
     if process.detect_deadlock(){
-        task.inner_exclusive_access().semphore_need.get_mut(sem_id).unwrap() -= 1;
+        if let Some(elem) = task.inner_exclusive_access().semphore_need.get_mut(sem_id) {
+            *elem -= 1;
+        }
         return  -0xDEAD;
     } 
     sem.down();    
-    task.inner_exclusive_access().semphore_list.get_mut(sem_id).unwrap() += 1;
-    task.inner_exclusive_access().semphore_need.get_mut(sem_id).unwrap() -= 1;
-
+    if let Some(elem) = task.inner_exclusive_access().semphore_list.get_mut(sem_id) {
+        *elem += 1;
+    }
+    if let Some(elem) = task.inner_exclusive_access().semphore_need.get_mut(sem_id) {
+        *elem -= 1;
+    }
     0
 }
 /// condvar create syscall

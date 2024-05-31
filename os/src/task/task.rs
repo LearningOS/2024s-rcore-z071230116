@@ -6,6 +6,7 @@ use crate::trap::TrapContext;
 use crate::{mm::PhysPageNum, sync::UPSafeCell};
 use alloc::sync::{Arc, Weak};
 use core::cell::RefMut;
+use alloc::vec;
 use alloc::vec::Vec;
 
 /// Task control block structure
@@ -69,6 +70,8 @@ impl TaskControlBlock {
         let trap_cx_ppn = res.trap_cx_ppn();
         let kstack = kstack_alloc();
         let kstack_top = kstack.get_top();
+        let semp_list_len = &process.inner_exclusive_access().semaphore_list.len();        
+
         Self {
             process: Arc::downgrade(&process),
             kstack,
@@ -79,8 +82,8 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kstack_top),
                     task_status: TaskStatus::Ready,
                     exit_code: None,
-                    semphore_list:Vec::new(),
-                    semphore_need:Vec::new(),
+                    semphore_list:vec![0;*semp_list_len],
+                    semphore_need:vec![0;*semp_list_len],
                 })
             },
         }
