@@ -43,9 +43,9 @@ pub struct TaskControlBlockInner {
     /// It is set when active exit or execution error occurs
     pub exit_code: Option<i32>,
     /// the semphore the task own
-    pub semphore_list:Vec<u32>,
+    pub semphore_list:Vec<i32>,
     /// the need semphore
-    pub semphore_need:Vec<u32>
+    pub semphore_need:Vec<i32>
 }
 
 impl TaskControlBlockInner {

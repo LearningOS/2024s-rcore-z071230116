@@ -76,6 +76,7 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     drop(process_inner);
     drop(process);
     if mutex.get_lock_state(){
+        mutex.lock();
         return -0xdead;
     }else{
         mutex.lock();
@@ -139,7 +140,6 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
                 None =>{},
             }
         }
-        error!("id is {}",id);
         id
     } else {
         process_inner
@@ -156,7 +156,6 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
         }
         process_inner.semaphore_list.len() - 1
     };
-    error!("new id is {}",id);
     id as isize
 }
 /// semaphore up syscall
@@ -200,8 +199,6 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     let process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
     drop(process_inner);    
-    error!("{} is sem_id",sem_id);
-    error!("the need is {:?}",task.inner_exclusive_access().semphore_need);
     if let Some(elem) = task.inner_exclusive_access().semphore_need.get_mut(sem_id) {
         *elem += 1;
     }

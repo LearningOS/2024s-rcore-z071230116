@@ -292,9 +292,9 @@ impl ProcessControlBlock {
     pub fn detect_deadlock(&self) -> bool{
         let process = current_process();
         let process_inner = process.inner.exclusive_access();
-        let mut available:Vec<u32>  = Vec::new();
-        let mut need = Vec::new();
-        let mut allocation:Vec<Vec<u32>> = Vec::new();
+        let mut available:Vec<i32>  = Vec::new();
+        let mut need: Vec<Vec<i32>> = Vec::new();
+        let mut allocation:Vec<Vec<i32>> = Vec::new();
 
         for task in &process_inner.tasks{
             match task{
@@ -314,40 +314,44 @@ impl ProcessControlBlock {
                 None =>{},
             }
         }
-        drop(process_inner);  
-        for item in &self.inner.exclusive_access().semaphore_list{
+        for item in &process_inner.semaphore_list{
             match item{
                 Some(_sem)=>{
-                    let i = _sem.get_count();
-                    available.push(i as u32);
+                    let _i =_sem.get_count();
+                    if _i < 0{
+                        available.push(0) ;
+                    }
+                    else{
+                        available.push(_i as i32);
+                    }
                 },
                 None=>{
                     available.push(0);
                 }
             }            
         }       
-        error!("need is {:?}",need);
-        error!("allocation is {:?}",allocation);
-        error!("available is {:?}",available);
-        Self::althory(need,allocation,available)
+        let result = Self::bank_algorithm(need,allocation,available);
+        result
     }
     
-    fn althory(need: Vec<Vec<u32>>,allocation: Vec<Vec<u32>>,mut available: Vec<u32>) -> bool{
+    fn bank_algorithm(need: Vec<Vec<i32>>,allocation: Vec<Vec<i32>>,mut available: Vec<i32>) -> bool{
 
-        let mut dealloc_sem_status = vec![0;available.len()];
-        
+        let mut dealloc_sem_status = vec![0;need.len()];
+        error!("the ava is {:?}",&available);
         loop{
             let mut is_dealloc = 0;
             let mut index = 0;
             for items in &need{                
                 let mut can_dealloc = true;
+                let mut index_need = 0;
                 for item in items{
-                    if item > available.get(index).unwrap(){
+                    if item > available.get(index_need).unwrap(){
                         can_dealloc = false;
                         break;
                     }
+                    index_need += 1;
                 }
-                if can_dealloc && dealloc_sem_status[index] != 0{
+                if can_dealloc && dealloc_sem_status[index] == 0{
                     is_dealloc = 1;
                     dealloc_sem_status[index] = 1;
                     let dealloc_sem = allocation.get(index).unwrap();
@@ -360,7 +364,7 @@ impl ProcessControlBlock {
             if is_dealloc == 0{
                 break;
             }
-        }
+        }        
         if dealloc_sem_status.contains(&0){
             return true;
         }

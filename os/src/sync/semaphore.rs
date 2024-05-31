@@ -55,6 +55,7 @@ impl Semaphore {
 
     ///
     pub fn get_count(&self) -> isize{
-        self.inner.exclusive_access().count 
+        let _inner = self.inner.exclusive_access();
+        _inner.count.clone()
     }
 }
