@@ -6,6 +6,7 @@ use crate::trap::TrapContext;
 use crate::{mm::PhysPageNum, sync::UPSafeCell};
 use alloc::sync::{Arc, Weak};
 use core::cell::RefMut;
+use alloc::vec::Vec;
 
 /// Task control block structure
 pub struct TaskControlBlock {
@@ -36,11 +37,14 @@ pub struct TaskControlBlockInner {
     pub trap_cx_ppn: PhysPageNum,
     /// Save task context
     pub task_cx: TaskContext,
-
     /// Maintain the execution status of the current process
     pub task_status: TaskStatus,
     /// It is set when active exit or execution error occurs
     pub exit_code: Option<i32>,
+    /// the semphore the task own
+    pub semphore_list:Vec<u32>,
+    /// the need semphore
+    pub semphore_need:Vec<u32>
 }
 
 impl TaskControlBlockInner {
@@ -75,6 +79,8 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kstack_top),
                     task_status: TaskStatus::Ready,
                     exit_code: None,
+                    semphore_list:Vec::new(),
+                    semphore_need:Vec::new(),
                 })
             },
         }

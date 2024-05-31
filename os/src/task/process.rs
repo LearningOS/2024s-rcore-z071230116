@@ -2,7 +2,7 @@
 
 use super::id::RecycleAllocator;
 use super::manager::insert_into_pid2process;
-use super::TaskControlBlock;
+use super::{current_process, current_task, TaskControlBlock};
 use super::{add_task, SignalFlags};
 use super::{pid_alloc, PidHandle};
 use crate::fs::{File, Stdin, Stdout};
@@ -286,4 +286,80 @@ impl ProcessControlBlock {
     pub fn getpid(&self) -> usize {
         self.pid.0
     }
+
+    /// detected the deadlock
+    /// 
+    pub fn detect_deadlock(&self) -> bool{
+        let current_task = current_task();
+        let tasks = current_process().inner.exclusive_access().tasks;
+        let sema_list  = self.inner.exclusive_access().semaphore_list.into_iter().
+        filter(|item| item.is_some());
+        let mut available:Vec<i32>  = Vec::new();
+        let mut need = Vec::new();
+        let mut allocation:Vec<Vec<i32>> = Vec::new();
+        let sema_size = sema_list.count();
+        let mut available:Vec<i32>  = Vec::new();      
+        let mut task_need = Vec::new();
+
+        for task in tasks{
+            match task{
+                Some(task) =>{
+                    allocation.push(task.inner_exclusive_access().semphore_list.clone());
+                    need.push(task.inner_exclusive_access().semphore_need.clone());
+                },
+                None =>{},
+            }
+        }
+
+        for item in sema_list{
+            match item{
+                Some(sem)=>{
+                    available.push(item.unwrap().inner.exclusive_access().count);
+                },
+                None=>{
+                    available.push(0);
+                }
+            }            
+        }               
+        althory(need,allocation,available)
+    }
+    
+    fn althory(need: Vec<Vec<u32>>,allocation: Vec<Vec<u32>>,available: Vec<u32>) -> bool{
+
+        let mut dealloc_sem_status = vec![0;available.len()];
+        
+        loop{
+            let mut is_dealloc = 0;
+            for items in &need{
+                let mut index_need = 0;
+                let mut index = 0;
+                let mut can_dealloc = true;
+                for item in items{
+                    if(item > available.get(index)){
+                        break;
+                    }
+                }
+                if can_dealloc && dealloc_sem_status[index_need] != 0{
+                    is_dealloc = 1;
+                    dealloc_sem_status[index_need] = 1;
+                    let dealloc_sem = allocation.get(index_need).unwrap();
+                    available.iter_mut().map(|index,x| {
+                        x += dealloc_sem.get(index);
+                    });
+                }
+                index_need += 1;
+            }
+            if is_dealloc == 0{
+                break;;
+            }
+        }
+        if dealloc_sem_status.contains(0){
+            return true;
+        }
+        false
+            
+    }
+
+
+
 }

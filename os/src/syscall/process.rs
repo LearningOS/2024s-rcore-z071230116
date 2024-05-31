@@ -1,11 +1,12 @@
 use crate::{
     config::MAX_SYSCALL_NUM,
     fs::{open_file, OpenFlags},
-    mm::{translated_ref, translated_refmut, translated_str},
+    mm::{translated_ref, translated_refmut, translated_str,PageTable,VirtAddr},
     task::{
         current_process, current_task, current_user_token, exit_current_and_run_next, pid2process,
         suspend_current_and_run_next, SignalFlags, TaskStatus,
     },
+    timer::get_time_us,
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
 
@@ -163,11 +164,37 @@ pub fn sys_kill(pid: usize, signal: u32) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
-        current_task().unwrap().process.upgrade().unwrap().getpid()
-    );
-    -1
+    let _us = get_time_us();    
+    let _sec:u64 = (_us / 1_000_000) as u64;
+    let _usec:u64 = (_us % 1_000_000) as u64;      
+    let time = [_sec,_usec];
+     
+    let _current_token = current_user_token();
+    let _page_table = PageTable::from_token(_current_token);
+
+    let mut _address = _ts as usize;
+
+    let mut _va = VirtAddr::from(_address);
+    let mut vpn = _va.floor(); 
+    let mut ppn = _page_table.translate(vpn).unwrap().ppn();
+    let mut page =  ppn.get_bytes_array();
+    let mut _offset = _va.page_offset();
+
+    for items in time{
+        let item  = items.to_ne_bytes();
+        for i in item {                        
+            _va = VirtAddr::from(_address);
+            if vpn != _va.floor(){
+                vpn = _va.floor();
+                ppn = _page_table.translate(vpn).unwrap().ppn();
+                page =  ppn.get_bytes_array();
+            }
+            _offset = _va.page_offset();
+            page[_offset] = i;
+            _address += 1 as usize;
+        }        
+    }
+    0
 }
 
 /// task_info syscall
