@@ -1,7 +1,12 @@
+
+
 use crate::sync::{Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore};
-use crate::task::{block_current_and_run_next, current_process, current_task};
+use crate::task::{block_current_and_run_next, current_process, current_task
+//    , TaskStatus
+};
 use crate::timer::{add_timer, get_time_ms};
 use alloc::sync::Arc;
+use crate::config::MAX_USIZE;
 
 /// sleep syscall
 pub fn sys_sleep(ms: usize) -> isize {
@@ -49,10 +54,10 @@ pub fn sys_mutex_create(blocking: bool) -> isize {
         .find(|(_, item)| item.is_none())
         .map(|(id, _)| id)
     {
-        process_inner.mutex_list[id] = Some((0,mutex));
+        process_inner.mutex_list[id] = Some((MAX_USIZE,mutex));
         id as isize
     } else {
-        process_inner.mutex_list.push(Some((0,mutex)));
+        process_inner.mutex_list.push(Some((MAX_USIZE,mutex)));
         process_inner.mutex_list.len() as isize - 1
     }
 }
@@ -70,20 +75,57 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
             .tid
     );
     let process = current_process();
-    let process_inner = process.inner_exclusive_access();
-    let node = &process_inner.mutex_list[mutex_id];
-    match node{
-        Some((tid,_mutex))=>{
-            if *tid != 0{
-                return -0xdead;
-            }else{
-                let mutex = Arc::clone(&_mutex);
-                drop(process_inner);
-                drop(process);
-                mutex.lock();                
-            }        
-        },
-        None =>{}
+    let process_inner = process.inner_exclusive_access();    
+    let node = process_inner.mutex_list[mutex_id].as_ref().unwrap();
+    let taskid = node.0;
+    let current_task = current_task();
+    let current_tid = current_task.as_ref().unwrap().get_task_id();
+    // let mut status = TaskStatus::Ready;
+    // for task in &process_inner.tasks{
+    //     match task {
+    //         Some(tcb)=>{
+    //             if tcb.get_task_id() == taskid{
+    //                 status = tcb.inner_exclusive_access().task_status;
+    //             }
+    //         },
+    //         None=>{}
+    //     }
+    // }
+    if taskid == MAX_USIZE{
+        drop(process_inner);
+        drop(process);
+        let process = current_process();
+        let mut process_inner = process.inner_exclusive_access();    
+        let node = process_inner.mutex_list[mutex_id].as_mut().unwrap();
+        let mutex = Arc::clone(&node.1);
+        let taskid = current_task.unwrap().get_task_id();
+        node.0 = taskid;
+        drop(process_inner);
+        drop(process);
+        mutex.lock();
+    }else if node.1.get_locktype() == 1{
+        let mutex = Arc::clone(&node.1);
+        drop(process_inner);
+        drop(process);
+        mutex.lock();
+        let process = current_process();
+        let mut process_inner = process.inner_exclusive_access();    
+        let node = process_inner.mutex_list[mutex_id].as_mut().unwrap();
+        let taskid = current_task.unwrap().get_task_id();
+        node.0 = taskid;
+    }else if node.1.get_locktype() == 2 && taskid !=current_tid{
+        let mutex = Arc::clone(&node.1);
+        drop(current_task);
+        drop(process_inner);
+        drop(process);
+        mutex.lock(); 
+    }else if node.1.get_locktype() == 1{
+
+    }else{
+        drop(current_task);
+        drop(process_inner);
+        drop(process);
+        return -0xdead;  
     }
     0
 }
@@ -101,11 +143,30 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
             .tid
     );
     let process = current_process();
-    let process_inner = process.inner_exclusive_access();    
-    let mutex = Arc::clone(&process_inner.mutex_list[mutex_id].as_ref().unwrap().1);
-    drop(process_inner);
-    drop(process);
-    mutex.unlock();
+    let mut process_inner = process.inner_exclusive_access();    
+    let node = process_inner.mutex_list[mutex_id].as_mut();
+
+    match node{
+        Some((tid,_mutex))=>{
+            if *tid == MAX_USIZE{
+                return 0;
+            }
+            let mutex = Arc::clone(&_mutex);                
+                match mutex.get_next_task() {
+                    Some(taskid) =>{
+                        error!("error");
+                        *tid= taskid;
+                    },
+                    None=>{
+                        *tid = MAX_USIZE;
+                    }
+                }
+            drop(process_inner);
+            drop(process);            
+            mutex.unlock();  
+        },
+        None =>{}
+    }    
     0
 }
 /// semaphore create syscall
@@ -177,12 +238,14 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
     );
     let task = current_task().unwrap();
     
-    *task.inner_exclusive_access().semphore_list.get_mut(sem_id).unwrap() -= 1;
+    if *task.inner_exclusive_access().semphore_list.get_mut(sem_id).unwrap()  > 0{
+        *task.inner_exclusive_access().semphore_list.get_mut(sem_id).unwrap() -= 1;
+    }    
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
     drop(process_inner);
-    sem.up();
+    sem.up(sem_id);
     0
 }
 /// semaphore down syscall
@@ -211,14 +274,15 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
             *elem -= 1;
         }
         return  -0xDEAD;
-    } 
-    sem.down();    
-    if let Some(elem) = task.inner_exclusive_access().semphore_list.get_mut(sem_id) {
-        *elem += 1;
     }
+    
+    sem.down();    
     if let Some(elem) = task.inner_exclusive_access().semphore_need.get_mut(sem_id) {
         *elem -= 1;
     }
+    if let Some(elem) = task.inner_exclusive_access().semphore_list.get_mut(sem_id) {
+        *elem += 1;
+    }    
     0
 }
 /// condvar create syscall

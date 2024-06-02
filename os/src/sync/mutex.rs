@@ -15,7 +15,10 @@ pub trait Mutex: Sync + Send {
     fn unlock(&self);
 
     /// get wait queue
-    fn get_lock_state(&self) ->bool;
+    fn get_next_task(&self) ->Option<usize>;
+
+    /// get lock type
+    fn get_locktype(&self) ->usize;
 }
 
 /// Spinlock Mutex struct
@@ -56,11 +59,16 @@ impl Mutex for MutexSpin {
     }
 
     /// get wait queue
-    fn get_lock_state(&self) ->bool{
-        let re = *self.locked.exclusive_access();
-        re
+    fn get_next_task(&self) ->Option<usize>{
+        None
+    }
+
+    /// get lock type
+    fn get_locktype(&self) ->usize{
+        1
     }
 }
+    
 
 /// Blocking Mutex struct
 pub struct MutexBlocking {
@@ -114,7 +122,20 @@ impl Mutex for MutexBlocking {
     }
 
     /// get wait queue
-    fn get_lock_state(&self) ->bool{
-        self.inner.exclusive_access().locked
+    fn get_next_task(&self) ->Option<usize>{
+        let mutex_inner = self.inner.exclusive_access();
+        match mutex_inner.wait_queue.get(0) {
+            Some(tcb)=>{
+                Some(tcb.get_task_id())
+            },
+            None=>{
+                None
+            }
+        }
+    }
+
+    /// get lock type
+    fn get_locktype(&self) ->usize{
+        2
     }
 }

@@ -287,6 +287,8 @@ impl ProcessControlBlock {
         self.pid.0
     }
 
+
+
     /// detected the deadlock
     /// 
     pub fn detect_deadlock(&self) -> bool{
@@ -330,17 +332,16 @@ impl ProcessControlBlock {
                 }
             }            
         }       
-        let result = Self::bank_algorithm(need,allocation,available);
+        let result = Self::bank_algorithm(&need,&allocation,&mut available);        
         result
     }
     
-    fn bank_algorithm(need: Vec<Vec<i32>>,allocation: Vec<Vec<i32>>,mut available: Vec<i32>) -> bool{
-
+    fn bank_algorithm(need: &Vec<Vec<i32>>,allocation: &Vec<Vec<i32>>, available: &mut Vec<i32>) -> bool{        
         let mut dealloc_sem_status = vec![0;need.len()];
         loop{
             let mut is_dealloc = 0;
             let mut index = 0;
-            for items in &need{                
+            for items in need{                
                 let mut can_dealloc = true;
                 let mut index_need = 0;
                 for item in items{
